@@ -1,3 +1,4 @@
+/* global fetch */
 import React, { Component } from 'react'
 import Helmet from 'react-helmet'
 import moment from 'moment'
@@ -6,6 +7,8 @@ import './App.css'
 import Main from './components/Main/Main'
 import Event from './components/Event/Event'
 import BookNow from './components/BookNow/BookNow'
+import CheckIn from './components/CheckIn/CheckIn'
+import PropTypes from 'prop-types'
 
 // FIXME: #1 This should be here duplicated :(
 const unifySchedule = function (events) {
@@ -53,8 +56,7 @@ const getFreeSlots = function (events, now) {
 }
 
 export default class App extends Component {
-
-  constructor(props) {
+  constructor (props) {
     super(props)
 
     this.state = {
@@ -66,17 +68,19 @@ export default class App extends Component {
       isAvailable: false,
       currentEvent: null,
       nextEvent: null,
-      nextFreeSlot: null
+      nextFreeSlot: null,
+      isEventChecked: null,
+      isCheckInOpen: null
     }
   }
 
-  componentWillMount() {
+  componentWillMount () {
     this.fetchSchedule()
     this.fetchInterval = setInterval(() => this.fetchSchedule(), 30 * 1000)
     this.updateInterval = setInterval(() => this.updateTime(), 1 * 1000)
   }
 
-  componentWillUnmount() {
+  componentWillUnmount () {
     clearInterval(this.fetchInterval)
     clearInterval(this.updateInterval)
   }
@@ -90,41 +94,68 @@ export default class App extends Component {
   book = () => {
     let { now, schedule } = this.state
     let freeSlot = schedule.find((s) => now.isBetween(s.start, s.end) && s.available)
-
-    schedule.push({
+    let newEvent = {
       start: now.startOf('minute'),
       end: moment.min(now.clone().add(15, 'minute'), moment(freeSlot.end)),
       summary: 'Flash meeting'
-    })
+    }
+    schedule.push(newEvent)
+
+    let isEventChecked = newEvent
+    let isCheckInOpen = false
 
     schedule = unifySchedule(schedule)
 
-    this.setState({ schedule }, this.updateTime)
+    this.setState({ schedule, isEventChecked, isCheckInOpen }, this.updateTime)
 
     fetch(`/api/rooms/${this.state.slug}`, { method: 'POST' })
       .then(response => response.json())
       .then(({ name, schedule }) => this.setState({ name, schedule }, this.updateTime))
   }
   
-  // TODO: Clean up App's updateTime method
-  updateTime() {
-    const { schedule } = this.state
-    const now = moment()
-    const currentEvent = schedule.find(slot => now.isBetween(slot.start, slot.end)) || null
-    const nextEvent = schedule.find(slot => !slot.available && now.isBefore(slot.start)) || null
-    const nextFreeSlot = schedule.find(slot => slot.available && now.isBefore(slot.start)) || null
-    // If there's no current event, something's probably wrong or we went into the next day
-    const isAvailable = currentEvent ? currentEvent.available : false
-    const isLoading = currentEvent ? false : true
-
-    this.setState({ now, isLoading, isAvailable, currentEvent, nextEvent, nextFreeSlot })
+  checkin = () => {
+    const isEventChecked = this.state.currentEvent
+    const isCheckInOpen = false
+    this.setState({isEventChecked, isCheckInOpen})
   }
 
-  render() {
-    const { name, slug, now, isLoading, isAvailable, currentEvent, nextEvent, nextFreeSlot } = this.state
+  removeEvent = (room, event) => {
+    fetch(`/api/rooms/${this.state.slug}/${event.id}`, { method: 'DELETE' })
+      .then(() => this.fetchSchedule())
+  }
+
+  // TODO: Clean up App's updateTime method
+  updateTime () {
+    let { schedule, isEventChecked, currentEvent, isAvailable, isLoading, isCheckInOpen } = this.state
+    const now = moment()
+    const nextEvent = schedule.find(slot => !slot.available && now.isBefore(slot.start)) || null
+    const nextFreeSlot = schedule.find(slot => slot.available && now.isBefore(slot.start)) || null
+    
+    currentEvent = schedule.find(slot => now.isBetween(slot.start, slot.end)) || null
+    // If there's no current event, something's probably wrong or we went into the next day
+    isAvailable = currentEvent ? currentEvent.available : false
+    isLoading = !currentEvent
+
+    // Reset isEventChecked flag for the next event
+    if (currentEvent && isEventChecked && !moment(currentEvent.start).isSame(isEventChecked.start)) {
+      isEventChecked = null
+    }
+
+    isCheckInOpen = !!(currentEvent && !currentEvent.available && !isEventChecked && schedule.find(slot => now.isBetween(slot.start, moment(slot.start).add(15, 'minute'))))
+
+    if (currentEvent && !isEventChecked && !isCheckInOpen && !isAvailable) {
+      this.removeEvent(this.state.slug, currentEvent)
+    }
+    this.setState({ now, isLoading, isAvailable, currentEvent, nextEvent, nextFreeSlot, isEventChecked, isCheckInOpen })
+  }
+
+  render () {
+    const { name, now, isLoading, isAvailable, currentEvent, nextEvent, nextFreeSlot, isCheckInOpen } = this.state
     const state = isAvailable ? 'free' : 'busy'
 
-    let minutesLeft, timeLeft, mainProps = { label: state }, eventProps = {}
+    let minutesLeft, timeLeft
+    let mainProps = { label: state }
+    let eventProps = {}
 
     // Define what event info is shown and the total time left
     if (isAvailable && nextEvent) {
@@ -132,7 +163,7 @@ export default class App extends Component {
       eventProps = { current: false, event: nextEvent }
       timeLeft = currentEvent.end
     } else if (!isAvailable) {
-      let endEvent = nextEvent ? nextEvent : (nextFreeSlot ? nextFreeSlot : now.endOf('day'))
+      let endEvent = nextEvent || (nextFreeSlot || now.endOf('day'))
       minutesLeft = Math.ceil(moment.duration(-now.diff(endEvent.start)).asMinutes())
       timeLeft = nextFreeSlot ? moment(nextFreeSlot.start) : now.endOf('day')
       if (currentEvent) {
@@ -141,7 +172,7 @@ export default class App extends Component {
     }
 
     // No/Distant event - Only shows the state of the room
-    if (minutesLeft >= 120 || isAvailable && !minutesLeft) {
+    if (minutesLeft >= 120 || (isAvailable && !minutesLeft)) {
       mainProps = { time: state }
       eventProps = {}
     } else { // Near event - Shows more detailed info about the state and current/next Event
@@ -160,10 +191,19 @@ export default class App extends Component {
           </Helmet>
           <Main {...mainProps}>
             {isAvailable && <BookNow book={this.book} />}
+            {isCheckInOpen && <CheckIn checkin={this.checkin} />}
           </Main>
           <Event {...eventProps} />
         </div>
       ) : null
     )
   }
+}
+
+App.propTypes = {
+  match: PropTypes.shape({
+    params: PropTypes.shape({
+      room: PropTypes.string.isRequired
+    })
+  })
 }
