@@ -4,10 +4,11 @@ import moment from 'moment'
 import './Event.css'
 
 export default class Event extends PureComponent {
-
-  static propsTypes = {
-    current: PropTypes.bool,
-    event: PropTypes.object
+  static get propTypes () {
+    return {
+      current: PropTypes.bool,
+      event: PropTypes.object
+    }
   }
 
   static defaultProps = {
@@ -15,7 +16,7 @@ export default class Event extends PureComponent {
     event: null
   }
 
-  render() {
+  render () {
     const { current, event } = this.props
     let time = event ? (current ? event.end : event.start) : 0
 

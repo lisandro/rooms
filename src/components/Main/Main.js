@@ -3,11 +3,12 @@ import PropTypes from 'prop-types'
 import './Main.css'
 
 export default class Main extends PureComponent {
-
-  static propsTypes = {
-    label: PropTypes.string,
-    time: PropTypes.string,
-    children: PropTypes.element
+  static get propTypes () {
+    return {
+      label: PropTypes.string,
+      time: PropTypes.string,
+      children: PropTypes.element
+    }
   }
 
   static defaultProps = {
@@ -15,7 +16,7 @@ export default class Main extends PureComponent {
     time: ''
   }
 
-  render() {
+  render () {
     const { children, label, time } = this.props
 
     return (

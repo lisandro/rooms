@@ -1,0 +1,16 @@
+{
+    "extends": [
+      "eslint:recommended",
+      "plugin:react/recommended",
+      "standard"
+    ],
+    "parser": "babel-eslint",
+    "rules": {
+      "no-trailing-spaces": ["error", { "skipBlankLines": true }],
+      "react/jsx-uses-vars": 1
+    },
+    "plugins": [
+      "react"
+    ]
+    
+  }
