@@ -42,14 +42,22 @@ const getEvents = function (roomSlug, date, cb) {
     if (err) { return cb(err, null) }
 
     // Normalize the events to prevent leaking private data
-    response.items = response.items.map((e) => normalizeEvent(e, date)).filter((e) => e !== null)
+    response.items = response.items.map((e) => normalizeEvent(e, date, room.id)).filter((e) => e !== null)
     response.items.sort((a, b) => a.start - b.start)
     cb(null, response)
   })
 }
 
-const normalizeEvent = function (apiEvent, now) {
-  if (apiEvent.status !== 'confirmed' || !apiEvent.start || !apiEvent.end) { return null }
+const normalizeEvent = function (apiEvent, now, roomId) {
+  let resourceDeclined = false
+  if (apiEvent.attendees) {
+    const resourceAtendees = apiEvent.attendees.filter(atendee => atendee.self)
+    if (resourceAtendees[0] && resourceAtendees[0].responseStatus) {
+      resourceDeclined = resourceAtendees[0].responseStatus === 'declined'
+    }
+  }
+  
+  if ((apiEvent.status !== 'confirmed' || !apiEvent.start || !apiEvent.end) || resourceDeclined) { return null }
 
   let event = {
     id: apiEvent.id,
