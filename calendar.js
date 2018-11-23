@@ -163,7 +163,7 @@ const bookEvent = function (roomSlug, booking, cb) {
   let room = rooms[roomSlug]
   if (!room) { cb(new Error('Room does not exist'), null); return }
 
-  let now = moment()
+  let now = moment().subtract(1, 'minutes')
 
   calendar.events.insert({
     calendarId: room.id,
@@ -195,6 +195,26 @@ const removeEvent = function (roomSlug, eventId, cb) {
   })
 }
 
+const endEvent = function (roomSlug, eventId, cb) {
+  let room = rooms[roomSlug]
+  if (!room) { cb(new Error('Room does not exist'), null); return }
+  let now = moment()
+  let params = {
+    calendarId: room.id,
+    eventId: eventId,
+    resource: {
+      end: { dateTime: now.format() }
+    }
+  }
+
+  calendar.events.patch(params, function (err, response) {
+    if (err) { return cb(new Error('Couldn\'t end the event'), null) }
+    let res = response
+    if (!response) { res = 'Event ended succesfully' }
+    cb(null, res)
+  })
+}
+
 module.exports = {
   roomExists,
   getRoomName,
@@ -206,5 +226,6 @@ module.exports = {
   getSchedule,
   unifySchedule,
   bookEvent,
-  removeEvent
+  removeEvent,
+  endEvent
 }

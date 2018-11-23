@@ -69,6 +69,20 @@ app.post('/api/rooms/:room', function (req, res, next) {
   })
 })
 
+app.post('/api/end/:room/:eventId', function (req, res, next) {
+  let roomSlug = req.params.room
+  let eventId = req.params.eventId
+  if (!calendar.roomExists(roomSlug)) { res.status(404).json({ error: 'Room not found' }); next(); return }
+
+  calendar.endEvent(roomSlug, eventId, (err, event) => {
+    if (err) { res.status(500).json({ error: 'API Not Available' }); next(); return }
+    res.json({
+      name: calendar.getRoomName(roomSlug),
+      event: eventId
+    })
+  })
+})
+
 app.use(history())
 app.use(require('nwb/express')(express))
 app.use(express.static('public'))

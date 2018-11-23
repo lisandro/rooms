@@ -5,4 +5,3 @@ npm-debug.log*
 rooms.json
 rooms-client.json
 .eslintcache
-package-lock.json

@@ -8,6 +8,7 @@ import Main from './components/Main/Main'
 import Event from './components/Event/Event'
 import BookNow from './components/BookNow/BookNow'
 import CheckIn from './components/CheckIn/CheckIn'
+import CheckOut from './components/CheckOut/CheckOut'
 import PropTypes from 'prop-types'
 
 // FIXME: #1 This should be here duplicated :(
@@ -55,6 +56,8 @@ const getFreeSlots = function (events, now) {
   return slots
 }
 
+const FLASH_MEETING_SUMMARY = 'Flash meeting'
+
 export default class App extends Component {
   constructor (props) {
     super(props)
@@ -70,7 +73,8 @@ export default class App extends Component {
       nextEvent: null,
       nextFreeSlot: null,
       isEventChecked: null,
-      isCheckInOpen: null
+      isCheckInOpen: null,
+      endIsLoading: false
     }
   }
 
@@ -97,7 +101,7 @@ export default class App extends Component {
     let newEvent = {
       start: now.startOf('minute'),
       end: moment.min(now.clone().add(15, 'minute'), moment(freeSlot.end)),
-      summary: 'Flash meeting'
+      summary: FLASH_MEETING_SUMMARY
     }
     schedule.push(newEvent)
 
@@ -117,6 +121,24 @@ export default class App extends Component {
     const isEventChecked = this.state.currentEvent
     const isCheckInOpen = false
     this.setState({isEventChecked, isCheckInOpen})
+  }
+
+  checkout = (room, event) => {
+    let currentEvent = this.state.currentEvent
+    if (currentEvent.id) {
+      this.setState({
+        endIsLoading: true
+      })
+      fetch(`/api/end/${this.state.slug}/${currentEvent.id}`, { method: 'POST' })
+        .then(() => {
+          this.fetchSchedule()
+          this.setState({
+            endIsLoading: false
+          })
+        })
+    } else {
+      this.fetchSchedule()
+    }
   }
 
   removeEvent = (room, event) => {
@@ -150,12 +172,13 @@ export default class App extends Component {
   }
 
   render () {
-    const { name, now, isLoading, isAvailable, currentEvent, nextEvent, nextFreeSlot, isCheckInOpen } = this.state
+    const { name, now, isLoading, isAvailable, currentEvent, nextEvent, nextFreeSlot, isCheckInOpen, isEventChecked } = this.state
     const state = isAvailable ? 'free' : 'busy'
 
     let minutesLeft, timeLeft
     let mainProps = { label: state }
     let eventProps = {}
+    let isFlashMeeting = currentEvent && currentEvent.summary === FLASH_MEETING_SUMMARY
 
     // Define what event info is shown and the total time left
     if (isAvailable && nextEvent) {
@@ -181,7 +204,8 @@ export default class App extends Component {
         time: minutesLeft >= 30 ? moment(timeLeft).format('HH:mm') : ` ${minutesLeft}'`
       }
     }
-
+    const shouldDisplayCheckin = isCheckInOpen && !isAvailable && !isFlashMeeting
+    const shouldDisplayCheckout = (isEventChecked || isFlashMeeting) && !isAvailable
     return (
       !isLoading ? (
         <div className={cn('App', state)}>
@@ -191,7 +215,8 @@ export default class App extends Component {
           </Helmet>
           <Main {...mainProps}>
             {isAvailable && <BookNow book={this.book} />}
-            {isCheckInOpen && <CheckIn checkin={this.checkin} />}
+            {shouldDisplayCheckin && <CheckIn checkin={this.checkin} />}
+            {shouldDisplayCheckout && <CheckOut disabled={this.state.endIsLoading} checkout={this.checkout} />}
           </Main>
           <Event {...eventProps} />
         </div>
