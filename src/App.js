@@ -166,7 +166,8 @@ export default class App extends Component {
     isCheckInOpen = !!(currentEvent && !currentEvent.available && !isEventChecked && schedule.find(slot => now.isBetween(slot.start, moment(slot.start).add(15, 'minute'))))
 
     if (currentEvent && !isEventChecked && !isCheckInOpen && !isAvailable) {
-      this.removeEvent(this.state.slug, currentEvent)
+      // Disabled for now until early-checkin is implemented
+      // this.removeEvent(this.state.slug, currentEvent)
     }
     this.setState({ now, isLoading, isAvailable, currentEvent, nextEvent, nextFreeSlot, isEventChecked, isCheckInOpen })
   }
